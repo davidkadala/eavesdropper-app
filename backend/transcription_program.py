@@ -18,8 +18,7 @@ class TranscriptionService:
         self.base_dir = Path(__file__).resolve().parent
         self.export_dir = self.base_dir / "exports"
         self.export_dir.mkdir(exist_ok=True)
-        # Load once so the API can reuse the model across requests.
-        self.model = whisper.load_model(self.model_name)
+        self.model = None
 
     async def transcribe_upload(self, file: UploadFile) -> dict[str, str | None]:
         suffix = Path(file.filename or "").suffix.lower()
@@ -42,7 +41,7 @@ class TranscriptionService:
             os.close(temp_wav_fd)
 
             audio.export(temp_wav_path, format="wav")
-            result = self.model.transcribe(temp_wav_path)
+            result = self._get_model().transcribe(temp_wav_path)
             transcript_text = result.get("text", "").strip()
             export_name = self._build_export_name(file.filename or "uploaded_file")
             export_path = self.export_dir / export_name
@@ -80,6 +79,13 @@ class TranscriptionService:
             "ffmpeg is not installed or not available on PATH. "
             "Install ffmpeg and ffprobe, then restart the API."
         )
+
+    def _get_model(self):
+        if self.model is None:
+            # Lazy-load Whisper so the web server can start before the model download completes.
+            self.model = whisper.load_model(self.model_name)
+
+        return self.model
 
     def _build_export_name(self, filename: str) -> str:
         stem = Path(filename).stem.strip() or "transcript"

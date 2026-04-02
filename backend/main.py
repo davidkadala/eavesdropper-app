@@ -58,7 +58,8 @@ def read_root() -> dict[str, str]:
 
 @app.get("/health")
 def health_check() -> dict[str, str]:
-    return {"status": "ok", "model": service.model_name}
+    model_status = "loaded" if service.model is not None else "not_loaded"
+    return {"status": "ok", "model": service.model_name, "model_status": model_status}
 
 
 @app.post("/transcribe", response_model=TranscriptionResponse)
