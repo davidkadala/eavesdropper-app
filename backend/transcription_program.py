@@ -1,6 +1,7 @@
 import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -8,6 +9,8 @@ from docx import Document
 from fastapi import UploadFile
 from pydub import AudioSegment
 import whisper
+
+from .usage_tracker import MonthlyUsageTracker
 
 
 class TranscriptionService:
@@ -19,6 +22,7 @@ class TranscriptionService:
         self.export_dir = self.base_dir / "exports"
         self.export_dir.mkdir(exist_ok=True)
         self.model = None
+        self.usage_tracker = MonthlyUsageTracker()
 
     async def transcribe_upload(self, file: UploadFile) -> dict[str, str | None]:
         suffix = Path(file.filename or "").suffix.lower()
@@ -30,6 +34,7 @@ class TranscriptionService:
         temp_wav_path: str | None = None
 
         try:
+            self.usage_tracker.ensure_allowed()
             temp_input_fd, temp_input_path = tempfile.mkstemp(suffix=suffix)
             os.close(temp_input_fd)
             with open(temp_input_path, "wb") as temp_input:
@@ -41,7 +46,9 @@ class TranscriptionService:
             os.close(temp_wav_fd)
 
             audio.export(temp_wav_path, format="wav")
+            started_at = time.perf_counter()
             result = self._get_model().transcribe(temp_wav_path)
+            self.usage_tracker.record_usage(time.perf_counter() - started_at)
             transcript_text = result.get("text", "").strip()
             export_name = self._build_export_name(file.filename or "uploaded_file")
             export_path = self.export_dir / export_name

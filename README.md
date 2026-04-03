@@ -26,7 +26,7 @@ Eavesdropper App/
 |   |-- src/
 |   |-- package.json
 |   `-- README.md
-|-- render.yaml
+|-- Dockerfile
 |-- firebase.json
 `-- README.md
 ```
@@ -93,42 +93,106 @@ http://127.0.0.1:5173
 
 This project is structured to support:
 
-- backend on Render
+- backend on Google Cloud Run
 - frontend on Firebase Hosting
 
-### Deploy Backend to Render
+### Deploy Backend to Cloud Run
 
-This repo includes `render.yaml` for a Render web service.
+This repo includes a [Dockerfile](/c:/Users/Hp/Documents/Eavesdropper%20App/Dockerfile#L1) that:
 
-Render settings used by this project:
+- uses Python `3.11.9`
+- installs `ffmpeg`
+- installs backend dependencies
+- runs `uvicorn backend.main:app`
 
-- Build command: `pip install -r backend/requirements.txt`
-- Start command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+#### 1. Install and initialize Google Cloud CLI
 
-Important environment variables for Render:
+Follow the official setup guide:
 
-- `PYTHON_VERSION=3.11.9`
-- `WHISPER_MODEL=tiny`
-- `FRONTEND_ORIGINS=https://your-firebase-app.web.app,https://your-firebase-site.firebaseapp.com`
+- https://cloud.google.com/sdk/docs/install
 
-After deployment, note your Render backend URL. It will look similar to:
+Then log in:
+
+```bash
+gcloud auth login
+```
+
+#### 2. Set your Google Cloud project
+
+```bash
+gcloud config set project YOUR_PROJECT_ID
+```
+
+#### 3. Enable required APIs
+
+```bash
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com firestore.googleapis.com
+```
+
+#### 4. Create Firestore for monthly usage tracking
+
+The backend uses Firestore to store monthly usage totals so the free-tier guard survives restarts and scaling.
+
+Create Firestore in Native mode in your Google Cloud / Firebase project before deploying the backend.
+
+#### 5. Deploy the backend
+
+From the project root, run:
+
+```bash
+gcloud run deploy eavesdropper-backend ^
+  --source . ^
+  --region us-central1 ^
+  --platform managed ^
+  --allow-unauthenticated ^
+  --memory 2Gi ^
+  --cpu 1 ^
+  --set-env-vars WHISPER_MODEL=tiny,FRONTEND_ORIGINS=https://your-firebase-app.web.app,https://your-firebase-site.firebaseapp.com
+```
+
+If you are using Bash instead of PowerShell/cmd line continuation, use:
+
+```bash
+gcloud run deploy eavesdropper-backend \
+  --source . \
+  --region us-central1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --memory 2Gi \
+  --cpu 1 \
+  --set-env-vars WHISPER_MODEL=tiny,FRONTEND_ORIGINS=https://your-firebase-app.web.app,https://your-firebase-site.firebaseapp.com
+```
+
+Why `2Gi`:
+
+- Render free ran out of memory
+- Whisper `tiny` still needs room for Python, Torch, ffmpeg, and transcription work
+- Cloud Run lets you choose a larger memory size
+
+Monthly free-tier guard:
+
+- the backend tracks monthly request count, vCPU-seconds, and GiB-seconds in Firestore
+- once usage reaches the configured threshold, transcription requests are blocked
+- the default threshold is `0.8`, which means `80%`
+- the API returns: `free usage limits reached, try again next month`
+
+After deployment, note your backend URL. It will look similar to:
 
 ```text
-https://your-service-name.onrender.com
+https://eavesdropper-backend-xxxxx-uc.a.run.app
 ```
 
 ### Deploy Frontend to Firebase Hosting
 
 This repo includes:
 
-- `firebase.json`
-- `.firebaseignore`
-- `frontend/.env.example`
+- [firebase.json](/c:/Users/Hp/Documents/Eavesdropper%20App/firebase.json#L1)
+- [frontend/.env.example](/c:/Users/Hp/Documents/Eavesdropper%20App/frontend/.env.example#L1)
 
-Before building the frontend for production, create `frontend/.env` and point it to your Render backend:
+Before building the frontend for production, create `frontend/.env` and point it to your Cloud Run backend:
 
 ```bash
-VITE_API_BASE_URL=https://your-render-service.onrender.com
+VITE_API_BASE_URL=https://your-cloud-run-url.a.run.app
 ```
 
 Then build the frontend:
@@ -192,6 +256,15 @@ If `WHISPER_MODEL` is not set, it defaults to:
 tiny
 ```
 
+Usage-guard environment variables:
+
+```bash
+FREE_USAGE_THRESHOLD_RATIO=0.8
+USAGE_GUARD_ENABLED=true
+CLOUD_RUN_MEMORY_GIB=2
+CLOUD_RUN_VCPU_COUNT=1
+```
+
 The frontend can optionally point to a different backend URL by creating `frontend/.env`:
 
 ```bash
@@ -237,8 +310,9 @@ If transcription fails, check:
 - the uploaded file format is supported
 - the required Python packages are installed
 
-If the download button does not work, check that:
+If the deployed backend fails on startup or transcription, check:
 
-- transcription completed successfully
-- the generated file exists in `backend/exports/`
-- the backend is still running
+- Cloud Run service logs
+- memory setting is high enough, such as `2Gi`
+- the deployed service URL is included in frontend config
+- the Firebase URLs are included in `FRONTEND_ORIGINS`

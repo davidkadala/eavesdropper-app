@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .transcription_program import TranscriptionService
+from .usage_tracker import FreeUsageLimitError
 
 
 app = FastAPI(
@@ -69,6 +70,8 @@ async def transcribe_audio(file: UploadFile = File(...)) -> TranscriptionRespons
         return TranscriptionResponse(**result)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FreeUsageLimitError as exc:
+        raise HTTPException(status_code=429, detail="free usage limits reached, try again next month") from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
 
