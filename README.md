@@ -2,7 +2,7 @@
 
 Eavesdropper is a full-stack audio transcription app with:
 
-- a `FastAPI` backend that transcribes uploaded audio with Whisper
+- a `FastAPI` backend that transcribes uploaded audio locally with Whisper
 - a `React + Vite` frontend for choosing files, tracking transcription state, reading the transcript, and downloading a Word document
 
 ## Features
@@ -17,27 +17,27 @@ Eavesdropper is a full-stack audio transcription app with:
 
 ```text
 Eavesdropper App/
-├── backend/
-│   ├── main.py
-│   ├── transcription_program.py
-│   ├── requirements.txt
-│   └── exports/
-├── frontend/
-│   ├── src/
-│   ├── package.json
-│   └── README.md
-└── README.md
+|-- backend/
+|   |-- main.py
+|   |-- transcription_program.py
+|   |-- requirements.txt
+|   `-- exports/
+|-- frontend/
+|   |-- src/
+|   |-- package.json
+|   `-- README.md
+|-- render.yaml
+|-- firebase.json
+`-- README.md
 ```
 
 ## Requirements
 
 Before running the project, make sure you have:
 
-- Python 3.10+ recommended
+- Python 3.11.9
 - Node.js and npm
 - `ffmpeg` and `ffprobe` installed and available on your system `PATH`
-
-The backend depends on `ffmpeg` for audio conversion before transcription.
 
 ## Backend Setup
 
@@ -98,7 +98,7 @@ This project is structured to support:
 
 ### Deploy Backend to Render
 
-This repo includes [render.yaml](/c:/Users/Hp/Documents/Eavesdropper%20App/render.yaml) for a Render web service.
+This repo includes `render.yaml` for a Render web service.
 
 Render settings used by this project:
 
@@ -107,10 +107,9 @@ Render settings used by this project:
 
 Important environment variables for Render:
 
-- `WHISPER_MODEL=base`
+- `PYTHON_VERSION=3.11.9`
+- `WHISPER_MODEL=tiny`
 - `FRONTEND_ORIGINS=https://your-firebase-app.web.app,https://your-firebase-site.firebaseapp.com`
-
-`FRONTEND_ORIGINS` is required in production so the Firebase frontend can call the Render backend from the browser.
 
 After deployment, note your Render backend URL. It will look similar to:
 
@@ -122,9 +121,9 @@ https://your-service-name.onrender.com
 
 This repo includes:
 
-- [firebase.json](/c:/Users/Hp/Documents/Eavesdropper%20App/firebase.json#L1)
-- [.firebaseignore](/c:/Users/Hp/Documents/Eavesdropper%20App/.firebaseignore#L1)
-- [frontend/.env.example](/c:/Users/Hp/Documents/Eavesdropper%20App/frontend/.env.example#L1)
+- `firebase.json`
+- `.firebaseignore`
+- `frontend/.env.example`
 
 Before building the frontend for production, create `frontend/.env` and point it to your Render backend:
 
@@ -162,8 +161,8 @@ firebase deploy
 
 1. The user selects an audio file in the frontend.
 2. The frontend sends the file to `POST /transcribe`.
-3. The backend converts the file to WAV with `pydub` and `ffmpeg`.
-4. Whisper transcribes the audio.
+3. The backend converts the uploaded audio to WAV.
+4. Whisper transcribes the audio locally.
 5. The backend generates a `.docx` transcript and saves it in `backend/exports/`.
 6. The frontend shows the transcript and provides a download button for the Word file.
 
@@ -184,13 +183,13 @@ The backend currently accepts:
 The backend supports setting the Whisper model with an environment variable:
 
 ```bash
-WHISPER_MODEL=base
+WHISPER_MODEL=tiny
 ```
 
-If not set, it defaults to:
+If `WHISPER_MODEL` is not set, it defaults to:
 
 ```text
-base
+tiny
 ```
 
 The frontend can optionally point to a different backend URL by creating `frontend/.env`:
@@ -219,7 +218,7 @@ Each transcription response includes:
 ## Development Notes
 
 - The frontend uses a simple, task-focused UI for transcription.
-- The backend loads the Whisper model once and reuses it across requests.
+- The backend uses local Whisper inference with lazy model loading.
 - The frontend proxies API requests to the backend during local development.
 - The backend uses `FRONTEND_ORIGINS` for production CORS configuration.
 

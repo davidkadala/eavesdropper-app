@@ -4,8 +4,8 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import UploadFile
 from docx import Document
+from fastapi import UploadFile
 from pydub import AudioSegment
 import whisper
 
@@ -14,7 +14,7 @@ class TranscriptionService:
     SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".opus", ".m4a", ".aac", ".ogg", ".flac"}
 
     def __init__(self, model_name: str | None = None) -> None:
-        self.model_name = model_name or os.getenv("WHISPER_MODEL", "base")
+        self.model_name = model_name or os.getenv("WHISPER_MODEL", "tiny")
         self.base_dir = Path(__file__).resolve().parent
         self.export_dir = self.base_dir / "exports"
         self.export_dir.mkdir(exist_ok=True)
@@ -68,7 +68,6 @@ class TranscriptionService:
                     try:
                         os.remove(path)
                     except PermissionError:
-                        # Windows can briefly keep ffmpeg-related temp files locked.
                         pass
 
     def _ensure_ffmpeg_available(self) -> None:
@@ -82,7 +81,7 @@ class TranscriptionService:
 
     def _get_model(self):
         if self.model is None:
-            # Lazy-load Whisper so the web server can start before the model download completes.
+            # Lazy-load Whisper so the web server can start before model load completes.
             self.model = whisper.load_model(self.model_name)
 
         return self.model

@@ -9,6 +9,6 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: WHISPER_MODEL
-        value: base
+        value: tiny
       - key: FRONTEND_ORIGINS
         sync: false
